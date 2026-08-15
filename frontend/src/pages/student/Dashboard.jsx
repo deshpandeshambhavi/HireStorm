@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import InternshipHeatmap from '../../components/InternshipHeatmap';
 
 export default function StudentDashboard() {
   const { user, refreshUser } = useAuthStore();
@@ -257,6 +258,11 @@ export default function StudentDashboard() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ── INTERNSHIP ACTIVITY HEATMAP ───────────────────────── */}
+        {activeInternship && !pendingOffer && (
+          <InternshipHeatmap internship={activeInternship} />
         )}
 
         {/* ── Stat Cards ────────────────────────────────────────── */}
