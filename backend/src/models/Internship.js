@@ -11,6 +11,7 @@ const internshipSchema = new mongoose.Schema({
   source:      { type: String, enum: ['HACKATHON', 'CAMPUS_DRIVE', 'DIRECT'], default: 'HACKATHON' },
   campusDrive: { type: mongoose.Schema.Types.ObjectId, ref: 'CampusDrive', default: null },
   college:     { type: mongoose.Schema.Types.ObjectId, ref: 'College',     default: null },
+  cohort:      { type: String, trim: true, default: null },
 
   startDate: { type: Date },
   endDate:   { type: Date },
@@ -105,5 +106,6 @@ const internshipSchema = new mongoose.Schema({
 internshipSchema.index({ intern: 1, status: 1 });
 internshipSchema.index({ mentor: 1 });
 internshipSchema.index({ hackathon: 1 });
+internshipSchema.index({ college: 1, cohort: 1, status: 1 });
 
 module.exports = mongoose.model('Internship', internshipSchema);

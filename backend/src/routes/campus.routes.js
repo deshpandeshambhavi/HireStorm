@@ -44,7 +44,7 @@ const {
   // Public form
   getDriveByToken, submitDriveApplication,
   // College portal
-  collegeGetProfile, collegeGetDrives, collegeGetDriveApplications, collegeGetShortlisted,
+  collegeGetProfile, collegeGetDrives, collegeGetDriveApplications, collegeGetShortlisted, collegeGetInternships,
   // Public
   getCollegePublicInfo,
 } = require('../controllers/campus.controller');
@@ -60,6 +60,7 @@ router.get('/portal/profile',                         protectCollege, collegeGet
 router.get('/portal/drives',                          protectCollege, collegeGetDrives);
 router.get('/portal/drives/:id/applications',         protectCollege, collegeGetDriveApplications);
 router.get('/portal/drives/:id/shortlisted',          protectCollege, collegeGetShortlisted);
+router.get('/portal/internships',                     protectCollege, collegeGetInternships);
 
 // ── Admin routes (platform admin only) ───────────────────────────────────────
 router.get(   '/admin/list',                           protect, allowRoles('SUPER_ADMIN','PLATFORM_ADMIN'), adminListColleges);

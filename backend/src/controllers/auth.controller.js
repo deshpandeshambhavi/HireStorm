@@ -16,7 +16,7 @@ const generateTokens = (userId, role) => {
 // POST /api/v1/auth/register
 exports.register = async (req, res) => {
   try {
-    const { email, password, firstName, lastName, role, companyName } = req.body;
+    const { email, password, firstName, lastName, role, companyName, collegeId, cohort } = req.body;
     if (!email || !password || !firstName || !lastName) {
       return res.status(400).json({ success: false, message: 'All fields required' });
     }
@@ -57,6 +57,14 @@ exports.register = async (req, res) => {
       profile: { firstName, lastName },
       emailVerificationToken: verToken,
     };
+
+    if (collegeId && assignedRole === 'STUDENT') {
+      const College = require('../models/College');
+      const college = await College.findOne({ _id: collegeId, isActive: true }).select('_id');
+      if (!college) return res.status(400).json({ success: false, message: 'College not found or inactive' });
+      userData.college = college._id;
+      userData.cohort = cohort || null;
+    }
 
     // For COMPANY_ADMIN: create Company and link it; also auto-verify so they can login
     if (assignedRole === 'COMPANY_ADMIN') {

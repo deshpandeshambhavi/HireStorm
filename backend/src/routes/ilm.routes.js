@@ -18,6 +18,7 @@ const { downloadCertificate } = require('../controllers/examAndCert.controller')
 
 const ADMIN = ['PLATFORM_ADMIN', 'SUPER_ADMIN'];
 const ALL_STUDENTS = ['INTERN', 'STUDENT', 'PRO_STUDENT'];
+const REVIEWERS = ['MENTOR', ...ADMIN];
 
 // ── Intern: Accept/Decline Offer (MUST be before /offer/:userId to avoid wildcard match) ──
 router.post('/offer/accept',            protect, allowRoles(...ALL_STUDENTS), acceptOffer);
@@ -33,16 +34,16 @@ router.get('/all',                      protect, allowRoles(...ADMIN), getAllInt
 router.patch('/:id/assign-mentor',      protect, allowRoles(...ADMIN), assignMentor);
 
 // ── Admin/Mentor: Score Daily Log ─────────────────────────────────────────────
-router.put('/:ilmId/logs/:logId/score', protect, allowRoles(...ADMIN), scoreDailyLog);
+router.put('/:ilmId/logs/:logId/score', protect, allowRoles(...REVIEWERS), scoreDailyLog);
 
 // ── Intern/Mentor: Add Comment to Daily Log ──────────────────────────────────
 router.post('/:ilmId/logs/:logId/comment', protect, addDailyLogComment);
 
 // ── Admin: Get Mentoring Internships ───────────────────────────────────────────
-router.get('/mentoring',                protect, allowRoles(...ADMIN), getMentoringInternships);
+router.get('/mentoring',                protect, allowRoles(...REVIEWERS), getMentoringInternships);
 
 // ── Admin: Submit Monthly Review ──────────────────────────────────────────────
-router.put('/mentoring/:ilmId/monthly-review', protect, allowRoles(...ADMIN), submitMonthlyReview);
+router.put('/mentoring/:ilmId/monthly-review', protect, allowRoles(...REVIEWERS), submitMonthlyReview);
 
 // ── Intern: My Internship ─────────────────────────────────────────────────────
 // Allow STUDENT + PRO_STUDENT so Dashboard can check for pending offers without 403

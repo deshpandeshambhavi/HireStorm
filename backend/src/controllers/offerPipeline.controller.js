@@ -15,8 +15,8 @@ exports.selectWinningTeam = async (req, res) => {
     const { hackathonId, teamId } = req.params;
 
     const team = await Team.findOne({ _id: teamId, hackathon: hackathonId })
-      .populate('members.user', 'email profile')
-      .populate('leader', 'email profile');
+      .populate('members.user', 'email profile college cohort')
+      .populate('leader', 'email profile college cohort');
 
     if (!team) return res.status(404).json({ success: false, message: 'Team not found' });
 
@@ -45,6 +45,8 @@ exports.selectWinningTeam = async (req, res) => {
         mentor:       mentorId || member._id,
         team:         team._id,
         hackathon:    hackathonId,
+        college:      member.college || null,
+        cohort:       member.cohort || null,
         status:       'OFFER_SENT',
         acceptToken,
         rejectToken,

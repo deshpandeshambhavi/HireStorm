@@ -62,7 +62,8 @@ export default function AdminILM() {
       const allUsers = r.data.data || [];
       setUsers(allUsers);
       // Default mentor = SUPER_ADMIN (Sachin Deshpande)
-      const superAdmin = allUsers.find(u => u.role === 'SUPER_ADMIN')
+      const superAdmin = allUsers.find(u => u.role === 'MENTOR')
+        || allUsers.find(u => u.role === 'SUPER_ADMIN')
         || allUsers.find(u => u.role === 'PLATFORM_ADMIN');
       if (superAdmin) {
         setOfferForm(p => ({ ...p, mentorId: superAdmin._id }));
@@ -87,7 +88,7 @@ export default function AdminILM() {
       });
       toast.success('✅ Offer sent! Student will see it on their dashboard.');
       // Reset form but keep mentor defaulted to SUPER_ADMIN
-      const superAdmin = users.find(u => u.role === 'SUPER_ADMIN') || users.find(u => u.role === 'PLATFORM_ADMIN');
+      const superAdmin = users.find(u => u.role === 'MENTOR') || users.find(u => u.role === 'SUPER_ADMIN') || users.find(u => u.role === 'PLATFORM_ADMIN');
       setOfferForm({ userId: '', mentorId: superAdmin?._id || '', startDate: '', stipendAmount: 10000, domain: 'Full Stack Development', durationDays: 90 });
       fetchInternships();
     } catch (err) {
@@ -148,7 +149,7 @@ export default function AdminILM() {
   };
 
   const students = users.filter(u => ['STUDENT', 'PRO_STUDENT', 'INTERN'].includes(u.role));
-  const admins   = users.filter(u => ['PLATFORM_ADMIN', 'SUPER_ADMIN'].includes(u.role));
+  const admins   = users.filter(u => ['MENTOR', 'PLATFORM_ADMIN', 'SUPER_ADMIN'].includes(u.role));
 
   // ── Offer Transactions stats ──────────────────────────────────────────────
   const txStats = {
@@ -210,7 +211,7 @@ export default function AdminILM() {
                       <div>
                         <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>{ilm.intern?.profile?.firstName} {ilm.intern?.profile?.lastName}</div>
                         <div className="text-sm text-muted">
-                          Mentor: {ilm.mentor ? (`${ilm.mentor?.profile?.firstName || ''} ${ilm.mentor?.profile?.lastName || ''}`.trim() || 'Sachin Deshpande') : 'Sachin Deshpande'}
+                          College: {ilm.college?.code || ilm.college?.name || 'Unassigned'}{ilm.cohort ? ` · ${ilm.cohort}` : ''} · Mentor: {ilm.mentor ? (`${ilm.mentor?.profile?.firstName || ''} ${ilm.mentor?.profile?.lastName || ''}`.trim() || 'Unassigned') : 'Unassigned'}
                         </div>
                       </div>
                     </div>

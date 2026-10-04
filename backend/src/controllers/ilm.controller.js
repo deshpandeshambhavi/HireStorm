@@ -10,9 +10,22 @@ const { generateOfferLetterPDF } = require('../services/letterGenerator');
 // POST /api/v1/ilm/offer/:userId — admin sends offer
 exports.sendOffer = async (req, res) => {
   try {
-    const { mentorId, hackathonId, companyId, startDate, stipendAmount, domain, durationDays = 90 } = req.body;
-    const intern = await User.findById(req.params.userId);
+    const { mentorId, hackathonId, companyId, collegeId, cohort, startDate, stipendAmount, domain, durationDays = 90 } = req.body;
+    const intern = await User.findById(req.params.userId).select('+college');
     if (!intern) return res.status(404).json({ success: false, message: 'User not found' });
+    const college = collegeId || intern.college || null;
+    if (collegeId && intern.college && intern.college.toString() !== collegeId.toString()) {
+      return res.status(400).json({ success: false, message: 'Intern is associated with a different college' });
+    }
+    if (mentorId) {
+      const mentor = await User.findById(mentorId);
+      if (!mentor || !['MENTOR', 'PLATFORM_ADMIN', 'SUPER_ADMIN'].includes(mentor.role)) {
+        return res.status(400).json({ success: false, message: 'Selected user is not an eligible mentor' });
+      }
+      if (college && mentor.college && mentor.college.toString() !== college.toString()) {
+        return res.status(400).json({ success: false, message: 'Mentor belongs to a different college' });
+      }
+    }
 
     const start = new Date(startDate || Date.now());
     const duration = Number(durationDays);
@@ -43,6 +56,8 @@ exports.sendOffer = async (req, res) => {
       mentor:    mentorId || null,
       hackathon: hackathonId || null,
       company:   companyId  || null,
+      college,
+      cohort:    cohort || intern.cohort || null,
       startDate: start,
       endDate:   end,
       durationDays: duration,
@@ -117,6 +132,7 @@ exports.declineOffer = async (req, res) => {
 exports.getMyInternship = async (req, res) => {
   try {
     const internship = await Internship.findOne({ intern: req.user._id })
+      .populate('college', 'name code slug')
       .populate('mentor',   'profile email')
       .populate('company',  'name logo')
       .populate('hackathon','title slug');
@@ -131,10 +147,14 @@ exports.getMyInternship = async (req, res) => {
 // GET /api/v1/ilm/all — admin sees all interns
 exports.getAllInternships = async (req, res) => {
   try {
-    const internships = await Internship.find()
+    const filter = {};
+    if (req.query.collegeId) filter.college = req.query.collegeId;
+    if (req.query.cohort) filter.cohort = req.query.cohort;
+    const internships = await Internship.find(filter)
       .populate('intern',   'profile email')
       .populate('company',  'name')
       .populate('mentor',   'profile email')
+      .populate('college',  'name code slug')
       .populate('hackathon','title slug')
       .sort({ createdAt: -1 });
     res.json({ success: true, data: internships });
@@ -150,15 +170,21 @@ exports.assignMentor = async (req, res) => {
     if (!mentorId) return res.status(400).json({ success: false, message: 'mentorId is required' });
 
     const mentor = await User.findById(mentorId);
-    if (!mentor) return res.status(404).json({ success: false, message: 'Mentor not found' });
+    if (!mentor || !['MENTOR', 'PLATFORM_ADMIN', 'SUPER_ADMIN'].includes(mentor.role)) {
+      return res.status(404).json({ success: false, message: 'Eligible mentor not found' });
+    }
+
+    const existing = await Internship.findById(req.params.id);
+    if (!existing) return res.status(404).json({ success: false, message: 'Internship not found' });
+    if (existing.college && mentor.college && existing.college.toString() !== mentor.college.toString()) {
+      return res.status(400).json({ success: false, message: 'Mentor belongs to a different college' });
+    }
 
     const internship = await Internship.findByIdAndUpdate(
       req.params.id,
       { mentor: mentorId },
       { new: true }
     ).populate('intern', 'profile email').populate('mentor', 'profile email');
-
-    if (!internship) return res.status(404).json({ success: false, message: 'Internship not found' });
 
     await notify({
       recipientId: internship.intern._id,
@@ -184,6 +210,9 @@ exports.scoreDailyLog = async (req, res) => {
     }
     const internship = await Internship.findById(req.params.ilmId);
     if (!internship) return res.status(404).json({ success: false, message: 'Not found' });
+    const canReview = ['PLATFORM_ADMIN', 'SUPER_ADMIN', 'MENTOR'].includes(req.user.role)
+      && (['PLATFORM_ADMIN', 'SUPER_ADMIN'].includes(req.user.role) || internship.mentor?.toString() === req.user._id.toString());
+    if (!canReview) return res.status(403).json({ success: false, message: 'Not authorized to review this internship' });
 
     const log = internship.dailyLogs.id(req.params.logId);
     if (!log) return res.status(404).json({ success: false, message: 'Log not found' });
@@ -219,7 +248,11 @@ exports.addDailyLogComment = async (req, res) => {
     const log = internship.dailyLogs.id(req.params.logId);
     if (!log) return res.status(404).json({ success: false, message: 'Log not found' });
 
-    const role = req.user.role === 'INTERN' || req.user.role === 'STUDENT' || req.user.role === 'PRO_STUDENT' 
+    const isIntern = req.user.role === 'INTERN' || req.user.role === 'STUDENT' || req.user.role === 'PRO_STUDENT';
+    const isReviewer = ['MENTOR', 'PLATFORM_ADMIN', 'SUPER_ADMIN'].includes(req.user.role)
+      && (['PLATFORM_ADMIN', 'SUPER_ADMIN'].includes(req.user.role) || internship.mentor?.toString() === req.user._id.toString());
+    if (!isIntern && !isReviewer) return res.status(403).json({ success: false, message: 'Not authorized to comment on this internship' });
+    const role = isIntern
       ? 'INTERN' 
       : 'MENTOR';
 
@@ -241,7 +274,8 @@ exports.getMentoringInternships = async (req, res) => {
   try {
     const internships = await Internship.find({ mentor: req.user._id })
       .populate('intern', 'profile email')
-      .populate('company', 'name');
+      .populate('company', 'name')
+      .populate('college', 'name code slug');
     res.json({ success: true, data: internships });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

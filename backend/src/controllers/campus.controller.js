@@ -88,7 +88,7 @@ const adminDeleteCollege = async (req, res) => {
 const adminCreateDrive = async (req, res) => {
   try {
     const {
-      collegeId, title, description, driveDate, venue, mode,
+      collegeId, cohort, title, description, driveDate, venue, mode,
       jd, jds, shortlistingCriteria, enableInterviewRound, mcqConfig,
     } = req.body;
 
@@ -102,6 +102,7 @@ const adminCreateDrive = async (req, res) => {
     // Build the drive object
     const driveData = {
       college: collegeId,
+      cohort: cohort || null,
       createdBy: req.user._id,
       title, description, driveDate, venue, mode,
       shortlistingCriteria,
@@ -245,12 +246,11 @@ const adminSelectStudentAsIntern = async (req, res) => {
     const app = await DriveApplication.findById(req.params.appId).populate('drive');
     if (!app) return res.status(404).json({ success: false, message: 'Application not found' });
 
-    let platformUser = app.platformUser;
-    if (!platformUser) {
-      platformUser = await User.findOne({ email: app.student.email });
-      if (platformUser) {
-        app.platformUser = platformUser._id;
-      }
+    let platformUser = app.platformUser
+      ? await User.findById(app.platformUser)
+      : await User.findOne({ email: app.student.email });
+    if (platformUser && !app.platformUser) {
+      app.platformUser = platformUser._id;
     }
 
     if (!platformUser) {
@@ -261,12 +261,17 @@ const adminSelectStudentAsIntern = async (req, res) => {
       });
     }
 
+    if (platformUser.college && platformUser.college.toString() !== app.college.toString()) {
+      return res.status(400).json({ success: false, message: 'Student account is associated with a different college' });
+    }
+
     const { startDate, endDate, stipend, mentor } = req.body;
     const internship = await Internship.create({
       intern: platformUser._id,
       mentor: mentor || null,
       campusDrive: app.drive._id,
       college: app.college,
+      cohort: app.cohort || app.drive.cohort || null,
       source: 'CAMPUS_DRIVE',
       startDate,
       endDate,
@@ -282,6 +287,8 @@ const adminSelectStudentAsIntern = async (req, res) => {
     await User.findByIdAndUpdate(platformUser._id, {
       activeInternship: internship._id,
       role: 'INTERN',
+      college: app.college,
+      cohort: app.cohort || app.drive.cohort || null,
     });
 
     await CampusDrive.findByIdAndUpdate(app.drive._id, { $inc: { totalSelected: 1 } });
@@ -371,6 +378,7 @@ Return ONLY a JSON object: {"score": <number 0-100>, "analysis": "<2-3 sentence 
     const app = await DriveApplication.create({
       drive: drive._id,
       college: drive.college,
+      cohort: drive.cohort || null,
       student: { ...student, email: student.email.toLowerCase() },
       jdIndex,
       atsScore,
@@ -439,6 +447,26 @@ const collegeGetShortlisted = async (req, res) => {
       .sort({ overallScore: -1 });
 
     res.json({ success: true, shortlisted: apps, drive });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// GET /api/v1/college/portal/internships — college-scoped ILM monitoring
+const collegeGetInternships = async (req, res) => {
+  try {
+    const filter = { college: req.college._id };
+    if (req.query.cohort) filter.cohort = req.query.cohort;
+    if (req.query.status) filter.status = req.query.status;
+
+    const internships = await Internship.find(filter)
+      .populate('intern', 'profile email role cohort')
+      .populate('mentor', 'profile email role')
+      .populate('company', 'name logo')
+      .populate('campusDrive', 'title cohort')
+      .sort({ createdAt: -1 });
+
+    res.json({ success: true, internships });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -852,7 +880,7 @@ module.exports = {
   // Public form
   getDriveByToken, submitDriveApplication,
   // College portal
-  collegeGetProfile, collegeGetDrives, collegeGetDriveApplications, collegeGetShortlisted,
+  collegeGetProfile, collegeGetDrives, collegeGetDriveApplications, collegeGetShortlisted, collegeGetInternships,
   // Public
   getCollegePublicInfo,
 };

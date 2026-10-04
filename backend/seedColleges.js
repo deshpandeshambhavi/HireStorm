@@ -1,7 +1,7 @@
 // Allow MONGO_URI to be passed as CLI arg: node seedColleges.js mongodb+srv://...
 if (process.argv[2]) process.env.MONGO_URI = process.argv[2];
 require('dns').setServers(['8.8.8.8', '8.8.4.4']); // force Google DNS
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const mongoose = require('mongoose');
 const College = require('./src/models/College');
 const connectDB = require('./src/config/db');
@@ -508,16 +508,6 @@ const colleges = [
     tpo:{ name:'Training & Placement Officer', email:'tpo@icem.edu.in', phone:'+91 9876543253' },
     disciplines:['Computer Science','Information Technology','Mechanical Engineering','Civil Engineering','EXTC'],
   },
-  {
-    name:'Sinhgad College of Engineering', slug:'scoe-pune', code:'SCOE',
-    type:'ENGINEERING', university:'SPPU', city:'Pune', state:'Maharashtra',
-    email:'tpo@scoe.ac.in', password:'SCOE@Drive2025',
-    address:'Vadgaon (Bk), Off Sinhgad Road, Pune - 411041',
-    phone:'+91 20 2435 0226', website:'https://www.sinhgad.edu',
-    tpo:{ name:'Training & Placement Officer', email:'tpo@scoe.ac.in', phone:'+91 9876543254' },
-    disciplines:[...ENG],
-  },
-
   // ── MUMBAI — Design ──────────────────────────────────────────────────────
   {
     name:'Pearl Academy Mumbai', slug:'pearl-mumbai', code:'PEARLMUM',

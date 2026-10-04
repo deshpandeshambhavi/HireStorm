@@ -10,9 +10,8 @@
  */
 
 const mongoose = require('mongoose');
-const bcrypt   = require('bcryptjs');
-const slugify  = require('slugify');
 const path     = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 // ─── Load models ────────────────────────────────────────────────────────────
 const User        = require('./src/models/User');
@@ -26,14 +25,14 @@ const CampusDrive = require('./src/models/CampusDrive');
 const College     = require('./src/models/College');
 
 // ─── MongoDB URI ─────────────────────────────────────────────────────────────
-const MONGO_URI =
-  'mongodb+srv://raj-inno-123:hc1Hlnw0m1Qx5gmU@cluster0.s84kqdc.mongodb.net/hirestorm?retryWrites=true&w=majority&appName=Cluster0';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const counters = {
-  companies: 0, users: 0, listings: 0,
-  applications: 0, hackathons: 0, internships: 0,
-  transactions: 0, campusDrives: 0, colleges: 0,
+  companies: { created: 0, skipped: 0 }, users: { created: 0, skipped: 0 },
+  listings: { created: 0, skipped: 0 }, applications: { created: 0, skipped: 0 },
+  hackathons: { created: 0, skipped: 0 }, internships: { created: 0, skipped: 0 },
+  transactions: { created: 0, skipped: 0 }, campusDrives: { created: 0, skipped: 0 },
+  college: 'pending',
 };
 
 function daysAgo(n)   { const d = new Date(); d.setDate(d.getDate() - n); return d; }
@@ -42,12 +41,13 @@ function daysAhead(n) { const d = new Date(); d.setDate(d.getDate() + n); return
 async function upsertUser(data) {
   const existing = await User.findOne({ email: data.email });
   if (existing) {
+    counters.users.skipped++;
     console.log(`  ↩  User already exists: ${data.email}`);
     return existing;
   }
   const user = new User(data);   // pre-save hook will hash the password
   await user.save();
-  counters.users++;
+  counters.users.created++;
   console.log(`  ✔  Created user: ${data.email}`);
   return user;
 }
@@ -55,11 +55,12 @@ async function upsertUser(data) {
 async function upsertCompany(data) {
   const existing = await Company.findOne({ name: data.name });
   if (existing) {
+    counters.companies.skipped++;
     console.log(`  ↩  Company already exists: ${data.name}`);
     return existing;
   }
   const company = await Company.create(data);
-  counters.companies++;
+  counters.companies.created++;
   console.log(`  ✔  Created company: ${data.name}`);
   return company;
 }
@@ -68,11 +69,12 @@ async function upsertCompany(data) {
 async function upsertListing(data) {
   const existing = await Listing.findOne({ title: data.title, company: data.company });
   if (existing) {
+    counters.listings.skipped++;
     console.log(`  ↩  Listing already exists: ${data.title}`);
     return existing;
   }
   const listing = await Listing.create(data);
-  counters.listings++;
+  counters.listings.created++;
   console.log(`  ✔  Created listing: ${data.title}`);
   return listing;
 }
@@ -80,35 +82,34 @@ async function upsertListing(data) {
 async function upsertHackathon(data) {
   const existing = await Hackathon.findOne({ title: data.title });
   if (existing) {
+    counters.hackathons.skipped++;
     console.log(`  ↩  Hackathon already exists: ${data.title}`);
     return existing;
   }
   // Use new + save so the pre-save slug hook fires
   const hack = new Hackathon(data);
   await hack.save();
-  counters.hackathons++;
+  counters.hackathons.created++;
   console.log(`  ✔  Created hackathon: ${data.title}`);
   return hack;
 }
 
-async function upsertInternship(internId) {
-  const existing = await Internship.findOne({ intern: internId });
-  if (existing) {
-    console.log(`  ↩  Internship already exists for intern: ${internId}`);
-    return existing;
-  }
-  return null;  // caller creates it
-}
-
 async function upsertCollege(data) {
-  const existing = await College.findOne({ email: data.email });
+  const existing = await College.findOne({ $or: [{ email: data.email }, { slug: data.slug }, { code: data.code }] });
   if (existing) {
+    const matchesAllIdentifiers = existing.email === data.email && existing.slug === data.slug && existing.code === data.code;
+    if (!matchesAllIdentifiers) {
+      counters.college = 'conflict';
+      console.error(`  ⚠  College identity conflict for ${data.name}; matching email/slug/code record is different. Skipping creation.`);
+      return null;
+    }
+    counters.college = 'reused';
     console.log(`  ↩  College already exists: ${data.name}`);
     return existing;
   }
   const college = new College(data);
   await college.save();
-  counters.colleges++;
+  counters.college = 'created';
   console.log(`  ✔  Created college: ${data.name}`);
   return college;
 }
@@ -158,7 +159,8 @@ function buildMonthlyReview(month, score, startDate, mentorId) {
 // ═════════════════════════════════════════════════════════════════════════════
 async function seed() {
   console.log('\n🌱  HireStorm Seed Script Starting…\n');
-  await mongoose.connect(MONGO_URI);
+  if (!process.env.MONGO_URI) throw new Error('MONGO_URI is missing. Set it in backend/.env before running this seed.');
+  await mongoose.connect(process.env.MONGO_URI, { maxPoolSize: 1 });
   console.log('✔  MongoDB connected\n');
 
   // ── 1. COMPANIES ────────────────────────────────────────────────────────────
@@ -514,6 +516,7 @@ async function seed() {
   for (const ap of appPairs) {
     const existing = await Application.findOne({ listing: ap.listing, applicant: ap.applicant });
     if (existing) {
+      counters.applications.skipped++;
       console.log(`  ↩  Application already exists`);
       continue;
     }
@@ -525,7 +528,7 @@ async function seed() {
       coverLetter: 'I am very excited about this opportunity and believe my skills align perfectly.',
       resumeSnapshot: 'https://example.com/resume-placeholder.pdf',
     });
-    counters.applications++;
+    counters.applications.created++;
     console.log(`  ✔  Created application: ${ap.status}`);
   }
 
@@ -622,11 +625,12 @@ async function seed() {
       continuousAssessmentScore: 85,
       isExamUnlocked: false,
     });
-    counters.internships++;
+    counters.internships.created++;
     console.log('  ✔  Created internship: Rahul @ TechNova (ACTIVE)');
     // Link activeInternship on Rahul
     await User.updateOne({ _id: rahul._id }, { activeInternship: internship1._id });
   } else {
+    counters.internships.skipped++;
     console.log('  ↩  Internship already exists: Rahul');
   }
 
@@ -663,9 +667,10 @@ async function seed() {
         passMark: 40,
       },
     });
-    counters.internships++;
+    counters.internships.created++;
     console.log('  ✔  Created internship: Sneha @ DataPulse (COMPLETED)');
   } else {
+    counters.internships.skipped++;
     console.log('  ↩  Internship already exists: Sneha');
   }
 
@@ -683,20 +688,17 @@ async function seed() {
       offerStatus: 'PENDING',
       stipend:  { amount: 10000, currency: 'INR' },
     });
-    counters.internships++;
+    counters.internships.created++;
     console.log('  ✔  Created internship: Priya @ CloudWave (OFFER_SENT)');
   } else {
+    counters.internships.skipped++;
     console.log('  ↩  Internship already exists: Priya');
   }
 
   // ── 10. TRANSACTIONS ────────────────────────────────────────────────────────
   console.log('\n━━━  TRANSACTIONS  ━━━');
 
-  const txCount = await Transaction.countDocuments();
-  if (txCount >= 20) {
-    console.log(`  ↩  Transactions already seeded (found ${txCount})`);
-  } else {
-    const txDocs = [
+  const txDocs = [
       // 5x PRO_SUBSCRIPTION @299
       ...([arjun, priya, divya, ankita, amit].map((u, i) => ({
         user: u._id, type: 'PRO_SUBSCRIPTION', amount: 299, currency: 'INR',
@@ -718,12 +720,26 @@ async function seed() {
       { company: dataPulse._id,  type: 'LISTING_PIN', amount: 499, currency: 'INR', status: 'SUCCESS', metadata: { listingId: listingMLEngineer._id.toString() } },
       // 1x HACKATHON_SPONSOR @9999
       { company: dataPulse._id, type: 'HACKATHON_SPONSOR', amount: 9999, currency: 'INR', status: 'SUCCESS', metadata: { hackathonId: hack1._id.toString(), tier: 'GOLD' } },
-    ];
-
-    await Transaction.insertMany(txDocs, { ordered: false });
-    counters.transactions = txDocs.length;
-    console.log(`  ✔  Created ${txDocs.length} transactions`);
+  ];
+  for (const tx of txDocs) {
+    const identity = {
+      type: tx.type,
+      amount: tx.amount,
+      currency: tx.currency,
+      status: tx.status,
+      metadata: { $eq: tx.metadata },
+    };
+    if (tx.user) identity.user = tx.user;
+    if (tx.company) identity.company = tx.company;
+    const existing = await Transaction.findOne(identity);
+    if (existing) {
+      counters.transactions.skipped++;
+      continue;
+    }
+    await Transaction.create(tx);
+    counters.transactions.created++;
   }
+  console.log(`  ✔  Created ${counters.transactions.created} transactions; skipped ${counters.transactions.skipped}`);
 
   // ── 11. COLLEGE (for CampusDrive) ───────────────────────────────────────────
   console.log('\n━━━  COLLEGE  ━━━');
@@ -750,7 +766,7 @@ async function seed() {
   // ── 12. CAMPUS DRIVES ───────────────────────────────────────────────────────
   console.log('\n━━━  CAMPUS DRIVES  ━━━');
 
-  const existingDrive1 = await CampusDrive.findOne({ title: 'TechNova Campus Recruitment Drive 2025' });
+  const existingDrive1 = college ? await CampusDrive.findOne({ title: 'TechNova Campus Recruitment Drive 2025' }) : true;
   if (!existingDrive1) {
     await CampusDrive.create({
       college: college._id,
@@ -787,13 +803,14 @@ async function seed() {
       totalShortlisted: 12,
       totalSelected: 5,
     });
-    counters.campusDrives++;
+    counters.campusDrives.created++;
     console.log('  ✔  Created campus drive: TechNova @ NIT Mumbai (COMPLETED)');
   } else {
+    counters.campusDrives.skipped++;
     console.log('  ↩  Campus drive already exists: TechNova');
   }
 
-  const existingDrive2 = await CampusDrive.findOne({ title: 'DataPulse Analytics Campus Drive 2025' });
+  const existingDrive2 = college ? await CampusDrive.findOne({ title: 'DataPulse Analytics Campus Drive 2025' }) : true;
   if (!existingDrive2) {
     await CampusDrive.create({
       college: college._id,
@@ -821,23 +838,20 @@ async function seed() {
       totalShortlisted: 0,
       totalSelected: 0,
     });
-    counters.campusDrives++;
+    counters.campusDrives.created++;
     console.log('  ✔  Created campus drive: DataPulse @ NIT Mumbai (APPLICATIONS_OPEN)');
   } else {
+    counters.campusDrives.skipped++;
     console.log('  ↩  Campus drive already exists: DataPulse');
   }
   // ── SUMMARY ─────────────────────────────────────────────────────────────────
   console.log('\n' + '═'.repeat(60));
   console.log('🌱  SEED COMPLETE – Summary');
   console.log('═'.repeat(60));
-  console.log(`  Companies     : ${counters.companies}`);
-  console.log(`  Users         : ${counters.users}`);  console.log(`  Listings      : ${counters.listings}`);
-  console.log(`  Applications  : ${counters.applications}`);
-  console.log(`  Hackathons    : ${counters.hackathons}`);
-  console.log(`  Internships   : ${counters.internships}`);
-  console.log(`  Transactions  : ${counters.transactions}`);
-  console.log(`  Campus Drives : ${counters.campusDrives}`);
-  console.log(`  Colleges      : ${counters.colleges}`);
+  for (const key of ['companies', 'users', 'listings', 'applications', 'hackathons', 'internships', 'transactions', 'campusDrives']) {
+    console.log(`  ${key.padEnd(14)}: created ${counters[key].created}, skipped ${counters[key].skipped}`);
+  }
+  console.log(`  College       : ${counters.college}`);
   console.log('═'.repeat(60));
   console.log('\n✅  Database seeded successfully!\n');
 }

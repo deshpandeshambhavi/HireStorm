@@ -14,6 +14,7 @@ function CollegeSidebar({ college, activeTab, setActiveTab, onLogout }) {
     { id: 'applications',icon: '📄', label: 'Applications' },
     { id: 'shortlisted', icon: '✅', label: 'Shortlisted' },
     { id: 'selected',    icon: '🏆', label: 'Selected' },
+    { id: 'internships', icon: '📈', label: 'Internships' },
   ];
   return (
     <aside className="college-portal-sidebar">
@@ -515,6 +516,46 @@ function DrivesTab({ drives }) {
   );
 }
 
+function InternshipsTab({ token }) {
+  const [internships, setInternships] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    axios.get(`${API}/college/portal/internships`, {
+      headers: { Authorization: `Bearer ${token}` },
+      withCredentials: true,
+    }).then(({ data }) => setInternships(data.internships || []))
+      .catch(() => toast.error('Failed to load internships'))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  if (loading) return <div className="college-portal-content"><div className="college-loading">Loading internships...</div></div>;
+  return (
+    <div className="college-portal-content">
+      <h1 className="college-page-title">📈 Internship Participation</h1>
+      <p className="college-subtitle">Monitor internship progress for students associated with your college.</p>
+      {internships.length === 0 ? <div className="college-empty-state"><span>📭</span><p>No internship participation yet.</p></div> : (
+        <div className="college-table-wrap">
+          <table className="college-table">
+            <thead><tr><th>Student</th><th>Cohort</th><th>Company</th><th>Mentor</th><th>Status</th><th>Logs</th><th>CA Score</th></tr></thead>
+            <tbody>{internships.map(internship => (
+              <tr key={internship._id} className="college-table-row">
+                <td><div className="applicant-name">{internship.intern?.profile?.firstName} {internship.intern?.profile?.lastName}</div><div className="applicant-email">{internship.intern?.email}</div></td>
+                <td>{internship.cohort || '—'}</td>
+                <td>{internship.company?.name || 'HireStorm'}</td>
+                <td>{internship.mentor ? `${internship.mentor.profile?.firstName || ''} ${internship.mentor.profile?.lastName || ''}`.trim() : 'Unassigned'}</td>
+                <td><span className="status-badge status-blue">{internship.status?.replace(/_/g, ' ')}</span></td>
+                <td>{internship.dailyLogs?.length || 0}</td>
+                <td>{Math.round(internship.continuousAssessmentScore || 0)}/100</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Portal Page ─────────────────────────────────────────────────────────
 export default function CollegePortal() {
   const { slug } = useParams();
@@ -567,6 +608,7 @@ export default function CollegePortal() {
     applications: <ApplicationsTab drives={drives} collegeId={college._id} />,
     shortlisted:  <ShortlistedTab drives={drives} />,
     selected:     <SelectedTab drives={drives} />,
+    internships: <InternshipsTab token={token} />,
   };
 
   return (

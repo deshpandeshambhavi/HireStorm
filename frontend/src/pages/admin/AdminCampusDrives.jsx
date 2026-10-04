@@ -36,7 +36,7 @@ function CreateDriveModal({ colleges, onClose, onCreated }) {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    collegeId: '', title: '', description: '',
+    collegeId: '', cohort: '', title: '', description: '',
     driveDate: '', venue: '', mode: 'OFFLINE',
     jds: [emptyJD()],   // Always array of JDs
     shortlistingCriteria: { minATSScore: 60, minCGPA: 6.0, minClass10: 60, minClass12: 60, slots: 30 },
@@ -126,6 +126,10 @@ function CreateDriveModal({ colleges, onClose, onCreated }) {
                     <option value="HYBRID">Hybrid</option>
                   </select>
                 </div>
+              </div>
+              <div className="form-field">
+                <label>Cohort (optional)</label>
+                <input type="text" value={form.cohort} onChange={e => set('cohort', e.target.value)} placeholder="e.g. 2026 Graduating Batch" />
               </div>
               <div className="form-field">
                 <label>Drive Title *</label>

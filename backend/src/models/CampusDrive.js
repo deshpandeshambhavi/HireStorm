@@ -15,6 +15,7 @@ const jdSchema = new mongoose.Schema({
 
 const campusDriveSchema = new mongoose.Schema({
   college:  { type: mongoose.Schema.Types.ObjectId, ref: 'College', required: true },
+  cohort:   { type: String, trim: true, default: null },
   company:  { type: mongoose.Schema.Types.ObjectId, ref: 'Company' },
   createdBy:{ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 
@@ -96,5 +97,6 @@ const campusDriveSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 campusDriveSchema.index({ college: 1, status: 1 });
+campusDriveSchema.index({ college: 1, cohort: 1, status: 1 });
 
 module.exports = mongoose.model('CampusDrive', campusDriveSchema);

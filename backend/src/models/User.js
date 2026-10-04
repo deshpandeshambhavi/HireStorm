@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   role: { 
     type: String, 
-    enum: ['STUDENT', 'PRO_STUDENT', 'INTERN', 'COMPANY_HR', 'COMPANY_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN'], 
+    enum: ['STUDENT', 'PRO_STUDENT', 'INTERN', 'MENTOR', 'COMPANY_HR', 'COMPANY_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN'],
     default: 'STUDENT' 
   },
   profile: {
@@ -34,6 +34,8 @@ const userSchema = new mongoose.Schema({
   passwordResetExpiry: Date,
   refreshToken: String,
   companyRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Company' },
+  college: { type: mongoose.Schema.Types.ObjectId, ref: 'College', default: null },
+  cohort: { type: String, trim: true, default: null },
   activeInternship: { type: mongoose.Schema.Types.ObjectId, ref: 'Internship', default: null },
   profileViews: [{ viewedBy: mongoose.Schema.Types.ObjectId, viewedAt: Date }]
 }, { timestamps: true });
@@ -68,5 +70,6 @@ userSchema.methods.toPublicProfile = function() {
 
 userSchema.index({ role: 1 });
 userSchema.index({ activeInternship: 1 });
+userSchema.index({ college: 1, cohort: 1, role: 1 });
 
 module.exports = mongoose.model('User', userSchema);

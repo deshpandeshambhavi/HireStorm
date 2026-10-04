@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const driveApplicationSchema = new mongoose.Schema({
   drive:    { type: mongoose.Schema.Types.ObjectId, ref: 'CampusDrive', required: true },
   college:  { type: mongoose.Schema.Types.ObjectId, ref: 'College', required: true },
+  cohort:   { type: String, trim: true, default: null },
 
   // Which JD index the student applied for (0-based, maps to drive.jds[jdIndex])
   jdIndex: { type: Number, default: 0 },
